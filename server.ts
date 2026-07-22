@@ -251,18 +251,11 @@ async function writeDb(data: any): Promise<void> {
   }
 }
 
-// API Endpoints
-
-// Middleware to normalize route paths for Vercel Serverless Functions
-app.use((req, res, next) => {
-  if (req.url === "/api" || req.url === "/api/") {
-    req.url = "/api/state";
-  }
-  next();
-});
+// API Router
+const apiRouter = express.Router();
 
 // 1. Get current full state
-app.get("/api/state", async (req, res) => {
+apiRouter.get("/state", async (req, res) => {
   const { user } = req.query;
   const db = await readDb();
   
@@ -286,8 +279,14 @@ app.get("/api/state", async (req, res) => {
   res.json(db);
 });
 
+// Fallback for root route in serverless router
+apiRouter.get("/", async (req, res) => {
+  const db = await readDb();
+  res.json(db);
+});
+
 // 2. Update relationship anniversary start date
-app.post("/api/relationship-start-date", async (req, res) => {
+apiRouter.post("/relationship-start-date", async (req, res) => {
   const { date } = req.body;
   if (!date) {
     return res.status(400).json({ error: "Date is required" });
@@ -299,7 +298,7 @@ app.post("/api/relationship-start-date", async (req, res) => {
 });
 
 // 3. Update partner profile
-app.post("/api/partners", async (req, res) => {
+apiRouter.post("/partners", async (req, res) => {
   const { partner1, partner2 } = req.body;
   const db = await readDb();
   if (partner1) db.partner1 = { ...db.partner1, ...partner1 };
@@ -309,7 +308,7 @@ app.post("/api/partners", async (req, res) => {
 });
 
 // 4. Update shared notes
-app.post("/api/notes", async (req, res) => {
+apiRouter.post("/notes", async (req, res) => {
   const { notes } = req.body;
   const db = await readDb();
   db.notes = notes;
@@ -318,7 +317,7 @@ app.post("/api/notes", async (req, res) => {
 });
 
 // 5. Add a to-do list item
-app.post("/api/todos", async (req, res) => {
+apiRouter.post("/todos", async (req, res) => {
   const { text, dueDate, reminder, createdBy } = req.body;
   if (!text) {
     return res.status(400).json({ error: "Text is required" });
@@ -340,7 +339,7 @@ app.post("/api/todos", async (req, res) => {
 });
 
 // 6. Toggle/edit a to-do item
-app.put("/api/todos/:id", async (req, res) => {
+apiRouter.put("/todos/:id", async (req, res) => {
   const { id } = req.params;
   const { completed, completedBy } = req.body;
   const db = await readDb();
@@ -355,7 +354,7 @@ app.put("/api/todos/:id", async (req, res) => {
 });
 
 // 7. Delete a to-do item
-app.delete("/api/todos/:id", async (req, res) => {
+apiRouter.delete("/todos/:id", async (req, res) => {
   const { id } = req.params;
   const db = await readDb();
   db.todos = db.todos.filter((t: any) => t.id !== id);
@@ -364,7 +363,7 @@ app.delete("/api/todos/:id", async (req, res) => {
 });
 
 // 8. Add a calendar event
-app.post("/api/calendar-events", async (req, res) => {
+apiRouter.post("/calendar-events", async (req, res) => {
   const { title, type, date, description, createdBy } = req.body;
   if (!title || !date || !type) {
     return res.status(400).json({ error: "Title, type and date are required" });
@@ -386,7 +385,7 @@ app.post("/api/calendar-events", async (req, res) => {
 });
 
 // 9. Delete a calendar event
-app.delete("/api/calendar-events/:id", async (req, res) => {
+apiRouter.delete("/calendar-events/:id", async (req, res) => {
   const { id } = req.params;
   const db = await readDb();
   db.calendarEvents = db.calendarEvents.filter((e: any) => e.id !== id);
@@ -395,7 +394,7 @@ app.delete("/api/calendar-events/:id", async (req, res) => {
 });
 
 // 10. Send a Chat Message & auto-parse media for Galeri Media
-app.post("/api/chat-message", async (req, res) => {
+apiRouter.post("/chat-message", async (req, res) => {
   const { sender, text, mediaUrl, mediaType } = req.body;
   if (!text && !mediaUrl) {
     return res.status(400).json({ error: "Text or media is required" });
@@ -417,7 +416,7 @@ app.post("/api/chat-message", async (req, res) => {
 });
 
 // 10b. Mark messages as read by partner
-app.post("/api/chat-message/read", async (req, res) => {
+apiRouter.post("/chat-message/read", async (req, res) => {
   const { user } = req.body;
   if (!user) {
     return res.status(400).json({ error: "User is required" });
@@ -440,7 +439,7 @@ app.post("/api/chat-message/read", async (req, res) => {
 });
 
 // 11. Toggle message favorite (Pesan Favorit)
-app.post("/api/chat-message/:id/favorite", async (req, res) => {
+apiRouter.post("/chat-message/:id/favorite", async (req, res) => {
   const { id } = req.params;
   const db = await readDb();
   const msgIndex = db.chatMessages.findIndex((m: any) => m.id === id);
@@ -460,7 +459,7 @@ function formatCallSec(sec: number): string {
 }
 
 // 12a. Start a call
-app.post("/api/call/start", async (req, res) => {
+apiRouter.post("/call/start", async (req, res) => {
   const { caller, type } = req.body;
   if (!caller) return res.status(400).json({ error: "Caller is required" });
   const receiver = caller === "Grace" ? "Rio" : "Grace";
@@ -480,7 +479,7 @@ app.post("/api/call/start", async (req, res) => {
 });
 
 // 12b. Answer call
-app.post("/api/call/answer", async (req, res) => {
+apiRouter.post("/call/answer", async (req, res) => {
   const { user } = req.body;
   const db = await readDb();
   if (db.activeCall && db.activeCall.receiver === user && db.activeCall.status === "calling") {
@@ -493,7 +492,7 @@ app.post("/api/call/answer", async (req, res) => {
 });
 
 // 12c. Decline call
-app.post("/api/call/decline", async (req, res) => {
+apiRouter.post("/call/decline", async (req, res) => {
   const db = await readDb();
   if (db.activeCall) {
     const callTypeLabel = db.activeCall.type === "video" ? "Video" : "Suara";
@@ -516,7 +515,7 @@ app.post("/api/call/decline", async (req, res) => {
 });
 
 // 12d. End call
-app.post("/api/call/end", async (req, res) => {
+apiRouter.post("/call/end", async (req, res) => {
   const { user, durationSeconds } = req.body;
   const db = await readDb();
   if (db.activeCall) {
@@ -558,7 +557,7 @@ app.post("/api/call/end", async (req, res) => {
 });
 
 // 12. Add a memory (Timeline Kenangan)
-app.post("/api/memories", async (req, res) => {
+apiRouter.post("/memories", async (req, res) => {
   const { title, imageUrl, date, caption, location, createdBy } = req.body;
   if (!title || !imageUrl || !date) {
     return res.status(400).json({ error: "Title, image URL and date are required" });
@@ -582,7 +581,7 @@ app.post("/api/memories", async (req, res) => {
 });
 
 // 13. Delete a memory
-app.delete("/api/memories/:id", async (req, res) => {
+apiRouter.delete("/memories/:id", async (req, res) => {
   const { id } = req.params;
   const db = await readDb();
   db.memories = db.memories.filter((m: any) => m.id !== id);
@@ -591,7 +590,7 @@ app.delete("/api/memories/:id", async (req, res) => {
 });
 
 // 14. Add a map location pin (Peta Kenangan)
-app.post("/api/map-pins", async (req, res) => {
+apiRouter.post("/map-pins", async (req, res) => {
   const { title, lat, lng, description, category, date, photoUrl } = req.body;
   if (!title || lat === undefined || lng === undefined) {
     return res.status(400).json({ error: "Title and coordinates are required" });
@@ -613,7 +612,7 @@ app.post("/api/map-pins", async (req, res) => {
 });
 
 // 15. Delete a map location pin
-app.delete("/api/map-pins/:id", async (req, res) => {
+apiRouter.delete("/map-pins/:id", async (req, res) => {
   const { id } = req.params;
   const db = await readDb();
   db.mapPins = db.mapPins.filter((p: any) => p.id !== id);
@@ -622,7 +621,7 @@ app.delete("/api/map-pins/:id", async (req, res) => {
 });
 
 // Update / Post Live Location
-app.post("/api/live-location", async (req, res) => {
+apiRouter.post("/live-location", async (req, res) => {
   const { user, lat, lng, accuracy, isSharing, addressName, statusNote, batteryLevel } = req.body;
   if (!user || lat === undefined || lng === undefined) {
     return res.status(400).json({ error: "User, lat, and lng are required" });
@@ -649,7 +648,7 @@ app.post("/api/live-location", async (req, res) => {
 });
 
 // Toggle Live Location Sharing
-app.post("/api/live-location/toggle", async (req, res) => {
+apiRouter.post("/live-location/toggle", async (req, res) => {
   const { user, isSharing } = req.body;
   if (!user) {
     return res.status(400).json({ error: "User is required" });
@@ -674,7 +673,7 @@ app.post("/api/live-location/toggle", async (req, res) => {
 });
 
 // 16. Create a Love Capsule
-app.post("/api/love-capsules", async (req, res) => {
+apiRouter.post("/love-capsules", async (req, res) => {
   const { sender, message, mediaUrl, unlockDate } = req.body;
   if (!sender || !message || !unlockDate) {
     return res.status(400).json({ error: "Sender, message and unlock date are required" });
@@ -695,7 +694,7 @@ app.post("/api/love-capsules", async (req, res) => {
 });
 
 // 17. Open a Love Capsule
-app.post("/api/love-capsules/:id/open", async (req, res) => {
+apiRouter.post("/love-capsules/:id/open", async (req, res) => {
   const { id } = req.params;
   const db = await readDb();
   const capIndex = db.loveCapsules.findIndex((c: any) => c.id === id);
@@ -713,7 +712,7 @@ app.post("/api/love-capsules/:id/open", async (req, res) => {
 });
 
 // 18. Safe Arrival Ping (partner receives instant notification)
-app.post("/api/safe-arrivals", async (req, res) => {
+apiRouter.post("/safe-arrivals", async (req, res) => {
   const { user, locationName, type } = req.body;
   if (!user || !locationName) {
     return res.status(400).json({ error: "User and location are required" });
@@ -756,44 +755,51 @@ app.post("/api/safe-arrivals", async (req, res) => {
 });
 
 // 19. Clear active notifications
-app.post("/api/notifications/clear", async (req, res) => {
+apiRouter.post("/notifications/clear", async (req, res) => {
   const db = await readDb();
   db.notifications = db.notifications.map((n: any) => ({ ...n, read: true }));
   await writeDb(db);
   res.json({ success: true, state: db });
 });
 
-// Vite middleware setup for Development and Production
-async function startServer() {
-  if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
-    // SPA fallback
-    app.get("*", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
+// Mount API router
+app.use("/api", apiRouter);
+if (process.env.VERCEL) {
+  app.use("/", apiRouter);
+}
+
+// Vite middleware setup for local Development and Production
+if (!process.env.VERCEL) {
+  async function startServer() {
+    if (process.env.NODE_ENV !== "production") {
+      const vite = await createViteServer({
+        server: { middlewareMode: true },
+        appType: "spa",
+      });
+      app.use(vite.middlewares);
+    } else {
+      const distPath = path.join(process.cwd(), "dist");
+      app.use(express.static(distPath));
+      // SPA fallback
+      app.get("*", (req, res) => {
+        res.sendFile(path.join(distPath, "index.html"));
+      });
+    }
+
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`[CouplePortal Server] Running on http://0.0.0.0:${PORT}`);
+      
+      readDb()
+        .then(() => {
+          console.log("[Server] Database state loaded/seeded successfully");
+        })
+        .catch((error) => {
+          console.error("[Server] Failed to load/seed database state on startup:", error);
+        });
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`[CouplePortal Server] Running on http://0.0.0.0:${PORT}`);
-    
-    // Load/seed database state asynchronously after port is bound to prevent boot blocking
-    readDb()
-      .then(() => {
-        console.log("[Server] Database state loaded/seeded successfully");
-      })
-      .catch((error) => {
-        console.error("[Server] Failed to load/seed database state on startup:", error);
-      });
-  });
+  startServer();
 }
-
-startServer();
 
 export default app;
