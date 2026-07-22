@@ -1,6 +1,7 @@
 import express from "express";
 import path from "path";
 import fs from "fs";
+import os from "os";
 import { createServer as createViteServer } from "vite";
 import { createClient } from "@supabase/supabase-js";
 
@@ -10,13 +11,17 @@ const PORT = 3000;
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
-// Path for persistent database
-const DB_DIR = path.join(process.cwd(), "data");
+// Path for persistent database (supports Vercel Serverless /tmp)
+const DB_DIR = process.env.VERCEL ? os.tmpdir() : path.join(process.cwd(), "data");
 const DB_FILE = path.join(DB_DIR, "db.json");
 
-// Ensure db directory exists
-if (!fs.existsSync(DB_DIR)) {
-  fs.mkdirSync(DB_DIR, { recursive: true });
+// Ensure db directory exists safely without throwing EROFS on read-only serverless environments
+try {
+  if (!fs.existsSync(DB_DIR)) {
+    fs.mkdirSync(DB_DIR, { recursive: true });
+  }
+} catch (e) {
+  console.warn("Could not create DB_DIR, running in memory mode:", e);
 }
 
 // Initial default state
@@ -96,7 +101,9 @@ try {
     const content = fs.readFileSync(DB_FILE, "utf-8");
     localCacheState = JSON.parse(content);
   } else {
-    fs.writeFileSync(DB_FILE, JSON.stringify(DEFAULT_STATE, null, 2), "utf-8");
+    try {
+      fs.writeFileSync(DB_FILE, JSON.stringify(DEFAULT_STATE, null, 2), "utf-8");
+    } catch (e) {}
   }
 } catch (error) {
   console.error("Error reading initial database cache:", error);
@@ -245,6 +252,14 @@ async function writeDb(data: any): Promise<void> {
 }
 
 // API Endpoints
+
+// Middleware to normalize route paths for Vercel Serverless Functions
+app.use((req, res, next) => {
+  if (req.url === "/api" || req.url === "/api/") {
+    req.url = "/api/state";
+  }
+  next();
+});
 
 // 1. Get current full state
 app.get("/api/state", async (req, res) => {
