@@ -35,7 +35,7 @@ import {
   BellRing
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { AppState, Partner } from "./types";
+import { AppState, Partner, INITIAL_DEFAULT_STATE } from "./types";
 
 // Import sub-components
 import RelationTimer from "./components/RelationTimer";
@@ -62,7 +62,7 @@ export default function App() {
   const [pinError, setPinError] = useState<string>("");
 
   const [activeTab, setActiveTab] = useState<TabType | null>(null);
-  const [state, setState] = useState<AppState | null>(null);
+  const [state, setState] = useState<AppState>(INITIAL_DEFAULT_STATE);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string>("");
   const [searchQuery, setSearchQuery] = useState<string>("");
@@ -291,62 +291,60 @@ export default function App() {
     try {
       const url = isAuthenticated ? `/api/state?user=${encodeURIComponent(activeUser)}` : "/api/state";
       const res = await fetch(url);
-      if (!res.ok) throw new Error("Gagal mengambil data dari server");
-      
-      const contentType = res.headers.get("content-type");
-      if (!contentType || !contentType.includes("application/json")) {
-        throw new Error("Respon server bukan format JSON (kemungkinan server sedang memuat)");
-      }
+      if (res.ok) {
+        const contentType = res.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
+          const data: AppState = await res.json();
+          if (data && typeof data === "object") {
+            setState(data);
 
-      const data: AppState = await res.json();
-      setState(data);
+            // Real-time desktop / mobile background notification for new messages from partner
+            if (data.chatMessages && data.chatMessages.length > 0) {
+              const latestMsg = data.chatMessages[data.chatMessages.length - 1];
+              if (latestMsg.sender !== activeUser) {
+                if (lastMsgNotifiedIdRef.current !== null && lastMsgNotifiedIdRef.current !== latestMsg.id) {
+                  if ("Notification" in window && Notification.permission === "granted") {
+                    const notifTitle = `Pesan Baru dari ${latestMsg.sender} 💖`;
+                    const notifBody = latestMsg.text 
+                      ? latestMsg.text 
+                      : (latestMsg.mediaUrl ? "Mengirimkan foto/media 🖼️" : "Pesan Baru");
 
-      // Real-time desktop / mobile background notification for new messages from partner
-      if (data.chatMessages && data.chatMessages.length > 0) {
-        const latestMsg = data.chatMessages[data.chatMessages.length - 1];
-        if (latestMsg.sender !== activeUser) {
-          if (lastMsgNotifiedIdRef.current !== null && lastMsgNotifiedIdRef.current !== latestMsg.id) {
-            if ("Notification" in window && Notification.permission === "granted") {
-              const notifTitle = `Pesan Baru dari ${latestMsg.sender} 💖`;
-              const notifBody = latestMsg.text 
-                ? latestMsg.text 
-                : (latestMsg.mediaUrl ? "Mengirimkan foto/media 🖼️" : "Pesan Baru");
-
-              if (navigator.serviceWorker && navigator.serviceWorker.ready) {
-                navigator.serviceWorker.ready.then((reg) => {
-                  reg.showNotification(notifTitle, {
-                    body: notifBody,
-                    icon: "/icon.svg",
-                    badge: "/icon.svg",
-                    tag: "chat-" + latestMsg.id
-                  } as NotificationOptions);
-                });
-              } else {
-                new Notification(notifTitle, {
-                  body: notifBody,
-                  icon: "/icon.svg"
-                });
+                    if (navigator.serviceWorker && navigator.serviceWorker.ready) {
+                      navigator.serviceWorker.ready.then((reg) => {
+                        reg.showNotification(notifTitle, {
+                          body: notifBody,
+                          icon: "/icon.svg",
+                          badge: "/icon.svg",
+                          tag: "chat-" + latestMsg.id
+                        } as NotificationOptions);
+                      });
+                    } else {
+                      new Notification(notifTitle, {
+                        body: notifBody,
+                        icon: "/icon.svg"
+                      });
+                    }
+                  }
+                }
+                lastMsgNotifiedIdRef.current = latestMsg.id;
+              }
+            }
+            
+            // Real-time alert for safe arrival notifications
+            if (data.notifications && data.notifications.length > 0) {
+              const latestNotif = data.notifications[0];
+              // If we have a new unread notification, trigger the overlay popup
+              if (!latestNotif.read && latestNotif.id !== lastNotificationId) {
+                setLastNotificationId(latestNotif.id);
+                setShowNotificationPopup(true);
               }
             }
           }
-          lastMsgNotifiedIdRef.current = latestMsg.id;
         }
       }
-      
-      // Real-time alert for safe arrival notifications
-      if (data.notifications && data.notifications.length > 0) {
-        const latestNotif = data.notifications[0];
-        // If we have a new unread notification, trigger the overlay popup
-        if (!latestNotif.read && latestNotif.id !== lastNotificationId) {
-          setLastNotificationId(latestNotif.id);
-          setShowNotificationPopup(true);
-        }
-      }
-      
       if (isInitial) setLoading(false);
     } catch (err: any) {
-      console.error(err);
-      setError("Sambungan terputus dari server...");
+      console.warn("Server poll warning:", err);
       if (isInitial) setLoading(false);
     }
   }, [lastNotificationId, activeUser, isAuthenticated]);

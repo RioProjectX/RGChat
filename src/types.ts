@@ -127,3 +127,55 @@ export interface AppState {
   lastActiveRio?: string;
   activeCall?: ActiveCallState | null;
 }
+
+export const INITIAL_DEFAULT_STATE: AppState = {
+  relationshipStartDate: "2023-10-15",
+  partner1: {
+    name: "Grace",
+    avatar: "female-1",
+    address: "Rumah: Jl. Margonda Raya No. 12, Depok",
+    office: "Kampus: Universitas Indonesia",
+    bio: "Selalu bahagia bersamamu 💖"
+  },
+  partner2: {
+    name: "Rio",
+    avatar: "male-1",
+    address: "Rumah: Jl. Kemang Raya No. 45, Jakarta Selatan",
+    office: "Kantor: Menara BCA, Grand Indonesia",
+    bio: "Menjaga dan mencintaimu selamanya 🌸"
+  },
+  notes: "",
+  todos: [],
+  calendarEvents: [],
+  chatMessages: [],
+  memories: [],
+  mapPins: [],
+  loveCapsules: [],
+  safeArrivals: [],
+  notifications: [],
+  activeCall: null,
+  liveLocations: {
+    Grace: {
+      user: "Grace",
+      lat: -6.3686,
+      lng: 106.8322,
+      accuracy: 15,
+      updatedAt: new Date().toISOString(),
+      isSharing: true,
+      addressName: "Jl. Margonda Raya, Depok",
+      statusNote: "Kuliah di Kampus UI 📚",
+      batteryLevel: 88
+    },
+    Rio: {
+      user: "Rio",
+      lat: -6.2615,
+      lng: 106.8152,
+      accuracy: 12,
+      updatedAt: new Date().toISOString(),
+      isSharing: true,
+      addressName: "Kemang Raya, Jakarta Selatan",
+      statusNote: "Di kantor Menara BCA 💻",
+      batteryLevel: 94
+    }
+  }
+};
